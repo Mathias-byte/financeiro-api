@@ -1,0 +1,49 @@
+pipeline {
+    agent any
+    stages {
+        stage('Verificar Repositório') {
+            steps {
+                checkout([$class: 'GitSCM', branches: [[name: '*/main']], useRemoteConfigs: [[url: 'https://github.com/Mathias-byte/financeiro-api.git']]])
+            }
+        }
+
+        stage('Instalar Dependências') {
+            steps {
+                sh 'npm ci'
+            }
+        }
+
+        stage('Construir Imagem Docker') {
+            steps {
+                script {
+                    def appName = 'schoolmanager-gateway'
+                    def imageTag = "${appName}:${env.BUILD_ID}"
+
+                    sh "docker build -t ${imageTag} ."
+                }
+            }
+        }
+
+        stage('Fazer Deploy') {
+            steps {
+                script {
+                    def appName = 'schoolmanager-gateway'
+                    def imageTag = "${appName}:${env.BUILD_ID}"
+
+                    sh "docker stop ${appName} || exit 0"
+                    sh "docker rm -v ${appName} || exit 0"
+                    sh "docker run -d --name ${appName} -p 9517:9517 --env-file .env ${imageTag}"
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Deploy do Gateway realizado com sucesso!'
+        }
+        failure {
+            echo 'Houve um erro durante o deploy do Gateway.'
+        }
+    }
+}
