@@ -1,19 +1,14 @@
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller.js';
-import { AppService } from './app.service.js';
+import { AuthModule } from './auth/auth.module';
+import { BoletoModule } from './boletos/boleto.module';
+import { CobrancaModule } from './cobrancas/cobranca.module';
+import { DespesaModule } from './despesas/despesa.module';
+import { HealthModule } from './health/health.module';
+import { PagamentoModule } from './pagamentos/pagamento.module';
+import { PrismaModule } from './prisma/prisma.module';
+import { ReceitaModule } from './receitas/receita.module';
 
 @Module({
-  imports: [],
-  controllers: [AppController],
-  providers: [AppService],
+  imports: [PrismaModule, AuthModule, HealthModule, CobrancaModule, BoletoModule, PagamentoModule, ReceitaModule, DespesaModule],
 })
-export class AppModule {
-   /** adicionar somente estas linhas do construtor  **/
-  constructor() {
-    console.log("Aplicação iniciada!");
-    console.log("Banco:", process.env.DATABASE_URL);
-    console.log("API Key:", process.env.API_KEY);
-    console.log("JWT Secret:", process.env.JWT_SECRET);   
-  }
-   /** fim do adicionar  **/
-}
+export class AppModule {}

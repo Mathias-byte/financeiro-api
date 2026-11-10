@@ -1,132 +1,89 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# MS Financeiro — PropTech (PI5 Senac RJ)
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Microsserviço de **cobranças, boletos, pagamentos, receitas e despesas** do condomínio. NestJS 11, TypeScript, Prisma 7 (adapter MariaDB/MySQL) e MySQL 5.7 (servidor da faculdade). Porta **7523**, rotas sob **`/condominio/financeiro`**.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+Faz parte do PropTech junto com o MS Moradores (porta 7522), que **emite o login/JWT**. Este serviço só **valida** o token.
 
-## Description
+## Rotas
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+Todas exigem `Authorization: Bearer <token>` (exceto `/health`).
 
-## Project setup
+| Recurso | Rota | Síndico | Morador |
+| --- | --- | --- | --- |
+| Cobranças | `/condominio/financeiro/cobrancas` | tudo | só leitura, só dos imóveis dele |
+| Boletos | `/condominio/financeiro/boletos` | tudo | só leitura, só dos imóveis dele |
+| Pagamentos | `/condominio/financeiro/pagamentos` | tudo | só leitura, só dos imóveis dele |
+| Receitas | `/condominio/financeiro/receitas` | tudo | sem acesso (403) |
+| Despesas | `/condominio/financeiro/despesas` | tudo | sem acesso (403) |
+| Saúde | `/condominio/financeiro/health` | público | público |
 
-```bash
-$ npm install
-```
+Cada recurso tem `POST`, `GET` (lista), `GET /:id`, `PATCH /:id` e `DELETE /:id`.
 
-## Compile and run the project
+**Listagem:** `?page=1&pageSize=20` (máx. 500) → `{ data, total, page, pageSize, totalPages }`, o mesmo contrato do Moradores. Filtros: `status` (1 ativo, 0 inativo) em todos; `situacao`, `imovelId` e `busca` (descrição) em cobranças; `cobrancaId`, `imovelId` e `formaPagamento` em pagamentos; `cobrancaId` e `imovelId` em boletos; `categoria` e `busca` em receitas/despesas (despesas também busca no fornecedor).
 
-```bash
-# development
-$ npm run start
+**Valores:** dinheiro volta como texto (`"850.50"`) para não perder precisão. Datas `DATE` são `AAAA-MM-DD`; `dataPagamento` é um instante ISO (envie, por exemplo, `2026-11-05T12:00:00.000Z`).
 
-# watch mode
-$ npm run start:dev
+## Regras de negócio
 
-# production mode
-$ npm run start:prod
-```
+- **`DELETE` não apaga.** O registro fica inativo (`*_status = 0`) e continua consultável. Dado financeiro não some.
+- **Pagamento atualiza a cobrança.** Registrar, alterar ou cancelar um pagamento reavalia a cobrança na mesma transação: quando a soma dos pagamentos ativos cobre o valor ela vira `PAGO`; se deixar de cobrir, volta para `PENDENTE` (ou `VENCIDO`, se já passou do vencimento). `CANCELADO` nunca é alterado automaticamente. Cobrança cancelada ou inativa não recebe pagamento (409).
+- Uma cobrança por imóvel e competência (use sempre o dia 01). Um boleto por cobrança. O boleto é só um **cadastro** (linha digitável, código de barras, link do PDF): não há emissão bancária.
+- O pagamento não troca de cobrança: para corrigir, cancele e registre outro.
+- Situação `VENCIDO` **não** é marcada sozinha com o passar do tempo (não há tarefa agendada): ela só muda quando alguém altera a cobrança ou um pagamento.
 
-## Run tests
+## Autenticação
 
-```bash
-# unit tests
-$ npm run test
+O token é o do MS Moradores (`POST /condominio/morador/auth/login`) e precisa ser assinado com o **mesmo `JWT_SECRET`**. O token traz `usuarioPerfil` e `imovelIds` (imóveis com relação ativa do morador no login). Morador que pede cobrança de outro imóvel recebe **404**.
 
-# e2e tests
-$ npm run test:e2e
+Limites desta validação: não há consulta de usuário a cada requisição (o banco do Financeiro não tem usuários). Conta desativada ou rebaixada no Moradores continua valendo aqui até o token expirar (8 h por padrão). Mudanças nas relações do morador só aparecem no próximo login. Tokens emitidos antes da atualização do Moradores não trazem `imovelIds`: o morador precisa entrar de novo.
 
-# test coverage
-$ npm run test:cov
-```
+## Variáveis de ambiente (Infisical)
 
-## Deployment
+Os segredos ficam no Infisical, nunca no repositório (veja `.env.example`):
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+| Variável | Para quê |
+| --- | --- |
+| `DATABASE_URL` | MySQL do banco do Financeiro (o nome diferencia maiúsculas/minúsculas no servidor Linux) |
+| `JWT_SECRET` | igual ao do MS Moradores |
+| `PORT` | padrão 7523 |
+| `SWAGGER_ENABLED` | `true` liga o Swagger em produção; vazio liga só fora de produção |
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+## Banco de dados
+
+O usuário da aplicação só tem `SELECT/INSERT/UPDATE/DELETE`; as tabelas são criadas pelo professor com **`database/Financeiro.sql`**. A API não cria nem altera tabelas (não use `prisma db push` no servidor).
+
+## Como rodar
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+git clone https://github.com/Mathias-byte/financeiro-api.git && cd financeiro-api
+npm install
+npx prisma generate            # gera o Prisma Client em src/generated (não vai para o Git)
+
+npx infisical run --env=dev -- docker compose up --build      # com Docker
+# ou, sem Docker:
+npm run start:dev                                             # recarrega ao salvar (usa o Infisical)
+npm run build && npm run start:prod
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+- API: <http://localhost:7523/condominio/financeiro>
+- Health: <http://localhost:7523/condominio/financeiro/health> (200 `Healthy` ou 503 `Unhealthy`)
+- Swagger: <http://localhost:7523/condominio/financeiro/docs>. Na imagem Docker ele fica **desligado**; para uma demonstração defina `SWAGGER_ENABLED=true` e desligue depois, porque a página expõe toda a API.
 
-## Observability
+Pelo gateway da faculdade a rota pública fica `/condominio/gateway/financeiro` (combinar com o professor).
 
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
-
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
-
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
-
-To add it to this project, run this and approve the code it prints at [observe.nestjs.com/link](https://observe.nestjs.com/link) - signing up for free if you have no account:
+## Testes
 
 ```bash
-$ npx @nestjs/observe link
+npm test                       # unitários + HTTP com banco simulado, não precisa de MySQL
 ```
 
-It installs `@nestjs/observe`, wires it into `AppModule` and `main.ts`, and writes the app key and secret into `.env`, which every `nest start` script (`start`, `start:dev`, `start:debug`) then loads. In production, set `OBSERVE_APP_KEY` and `OBSERVE_APP_SECRET` in the environment instead.
+Teste ponta a ponta contra a API e o banco reais (cria dados temporários; **nunca em produção**): `node scripts/smoke-live.mjs` com as variáveis descritas no topo do arquivo.
 
-Or do it by hand:
+## Deploy (Jenkins)
 
-```bash
-$ npm install @nestjs/observe
-```
+`JenkinsfileLinux` baixa os segredos do Infisical num `.env` temporário, constrói a imagem, sobe o container `financeiro-proptech` e confere `/health`. `INFISICAL_PROJECT_ID` já aponta para o projeto do Financeiro (o mesmo do `.infisical.yaml`); confirme apenas a credencial do token no Jenkins.
 
-Then follow the [setup guide](https://docs.nestjs.com/observability/sdk) - it takes a single import and an app key.
+## Organização
 
-The free plan needs no payment details and covers 300,000 events a month. You can also browse the [live demo](https://www.observe-demo.nestjs.com/dashboard) first - the whole dashboard over a busy service's data, with nothing to install.
+`src/main.ts` e `src/app.setup.ts` (inicialização), `src/auth/` (validação do JWT e perfis), `src/health/`, `src/common/` (log de acesso, paginação, filtro de erros do Prisma), `src/swagger/`, e uma pasta por recurso (`cobrancas`, `boletos`, `pagamentos`, `receitas`, `despesas`) com controller, service, DTO e module. `prisma/schema.prisma` espelha o SQL via `@map`.
 
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observe](https://observe.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).

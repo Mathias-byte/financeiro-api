@@ -1,0 +1,91 @@
+// Schema Prisma do MS Financeiro (banco condominio_financeiro)
+// Espelha fielmente database/Financeiro.sql — nomes de coluna preservados via @map
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "cjs"
+  importFileExtension = ""
+}
+
+datasource db {
+  provider = "mysql"
+}
+enum SituacaoCobranca {
+  PENDENTE
+  PAGO
+  VENCIDO
+  CANCELADO
+}
+enum FormaPagamento {
+  PIX
+  BOLETO
+  CARTAO
+  TRANSFERENCIA
+  DINHEIRO
+  OUTRO
+}
+model Cobranca {
+  id Int @id @default(autoincrement()) @map("cobranca_id") @db.UnsignedInt
+  imovelId Int @map("imovel_id") @db.UnsignedInt
+  descricao String? @map("cobranca_descricao") @db.VarChar(255)
+  competencia DateTime @map("cobranca_competencia") @db.Date
+  valor Decimal @map("cobranca_valor") @db.Decimal(10,2)
+  vencimento DateTime @map("cobranca_vencimento") @db.Date
+  situacao SituacaoCobranca @default(PENDENTE) @map("cobranca_tipo")
+  dataCriacao DateTime @default(now()) @map("cobranca_data_criacao") @db.Timestamp(0)
+  status Int? @map("cobranca_status")
+  boleto Boleto?
+  pagamentos Pagamento[]
+  @@unique([imovelId, competencia], map: "uk_cobranca_imovel_competencia")
+  @@index([imovelId], map: "idx_cobranca_imovel")
+  @@index([situacao], map: "idx_cobranca_tipo")
+  @@index([vencimento], map: "idx_cobranca_vencimento")
+  @@map("cobranca")
+}
+model Boleto {
+  id Int @id @default(autoincrement()) @map("boleto_id") @db.UnsignedInt
+  cobrancaId Int @unique(map: "uk_cobranca") @map("cobranca_id") @db.UnsignedInt
+  codigoBarras String? @map("boleto_codigo_barras") @db.VarChar(255)
+  linhaDigitavel String? @unique(map: "uk_boleto_linha_digitavel") @map("boleto_linha_digitavel") @db.VarChar(255)
+  urlPdf String? @map("boleto_url_pdf") @db.VarChar(500)
+  dataEmissao DateTime @default(now()) @map("boleto_data_emissao") @db.Timestamp(0)
+  status Int? @map("boleto_status")
+  cobranca Cobranca @relation(fields: [cobrancaId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "fk_cobranca")
+  @@index([codigoBarras], map: "idx_boleto_codigo_barras")
+  @@map("boleto")
+}
+model Pagamento {
+  id Int @id @default(autoincrement()) @map("pagamento_id") @db.UnsignedInt
+  cobrancaId Int @map("cobrancas_id") @db.UnsignedInt
+  valorPago Decimal @map("pagamento_valor_pago") @db.Decimal(10,2)
+  dataPagamento DateTime @map("pagamento_data_pagamento") @db.Timestamp(0)
+  formaPagamento FormaPagamento @map("pagamento_forma_pagamento")
+  observacao String? @map("pagamento_observacao") @db.Text
+  status Int? @map("pagamento_status")
+  cobranca Cobranca @relation(fields: [cobrancaId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "fk_cobrancas")
+  @@index([cobrancaId], map: "idx_cobranca")
+  @@index([dataPagamento], map: "idx_pagamento_data")
+  @@map("pagamento")
+}
+model Receita {
+  id Int @id @default(autoincrement()) @map("receita_id") @db.UnsignedInt
+  descricao String? @map("receita_descricao") @db.VarChar(255)
+  valor Decimal @map("receita_valor") @db.Decimal(10,2)
+  data DateTime @map("receita_data_receita") @db.Date
+  categoria String? @map("receita_categoria") @db.VarChar(100)
+  status Int? @map("receita_status")
+  @@index([data], map: "idx_receita_data")
+  @@map("receita")
+}
+model Despesa {
+  id Int @id @default(autoincrement()) @map("despesa_id") @db.UnsignedInt
+  descricao String? @map("despesa_descricao") @db.VarChar(255)
+  valor Decimal @map("despesa_valor") @db.Decimal(10,2)
+  data DateTime @map("despesa_data_despesa") @db.Date
+  categoria String? @map("despesa_categoria") @db.VarChar(100)
+  status Int? @map("despesa_status")
+  fornecedor String? @map("despesa_fornecedor") @db.VarChar(150)
+  @@index([data], map: "idx_despesa_data")
+  @@map("despesa")
+}

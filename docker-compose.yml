@@ -1,0 +1,26 @@
+# Sobe a API do MS Financeiro. O MySQL NÃO roda aqui: é o servidor da faculdade (edumysql.acesso.rj.senac.br).
+#
+# As variáveis (DATABASE_URL, JWT_SECRET...) vêm do ambiente e NUNCA ficam escritas neste arquivo.
+# Com Infisical (padrão da equipe):
+#   npx infisical run --env=dev -- docker compose up --build
+# Sem Infisical: crie um .env ao lado deste arquivo com as mesmas variáveis e rode  docker compose up --build
+#
+# No servidor (Jenkins): o pipeline grava os segredos do Infisical num .env temporário e sobe o container.
+#
+# API:     http://localhost:7523/condominio/financeiro        Health: .../health
+# Swagger: http://localhost:7523/condominio/financeiro/docs   (desligado na imagem; ver SWAGGER_ENABLED)
+# As tabelas já existem no servidor (database/Financeiro.sql, executado pelo professor).
+services:
+  api:
+    build: .
+    container_name: financeiro-proptech
+    ports:
+      - "7523:7523"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?defina DATABASE_URL (Infisical ou .env)}
+      PORT: 7523
+      # a MESMA chave do MS Moradores: é ela que valida o token que o Moradores emite
+      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET (Infisical ou .env)}
+      # Swagger fica DESLIGADO na imagem (NODE_ENV=production). Para ligar: SWAGGER_ENABLED=true (Infisical ou .env)
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-}
+    restart: unless-stopped
