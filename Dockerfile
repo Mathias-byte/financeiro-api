@@ -27,10 +27,10 @@ RUN DATABASE_URL="placeholder" npx prisma generate && \
 
 # Configuração da aplicação
 ENV NODE_ENV=development
-ENV PORT=7503
+ENV PORT=7523
 
 # Porta da aplicação
-EXPOSE 7503
+EXPOSE 7523
 
 # Inicialização da aplicação
 CMD ["npm", "run", "start:prod"]
