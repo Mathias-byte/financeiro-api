@@ -17,7 +17,7 @@ pipeline {
             steps {
                 checkout([
                     $class: 'GitSCM',
-                    branches: [[name: '*/main']],
+                    branches: [[name: '*/master']],
                     userRemoteConfigs: [[
                         url: 'https://github.com/Mathias-byte/financeiro-api.git'
                     ]]
@@ -130,7 +130,7 @@ pipeline {
             ====================================
              HEMOVIDA ESTOQUE
              DEPLOY EXECUTADO COM SUCESSO
-             PORTA: 7503
+             PORTA: 7523
             ====================================
             '''
         }
