@@ -9,6 +9,10 @@ pipeline {
 
     environment {
         APP_NAME = 'condominio-financeiro-api'
+        APP_PORT             = '7523'
+        INFISICAL_PROJECT_ID = ''  // projeto "Financeiro" (não é segredo)
+        INFISICAL_ENV        = 'dev'                  // ambiente do Infisical (slug: dev/prod)
+        INFISICAL_PATH       = '/'                    // pasta dos segredos dentro do ambiente
     }
 
     stages {
@@ -37,6 +41,7 @@ pipeline {
                             set +x
                             set -eu
                             umask 077
+
                             rm -f .env
                         
                             npx -y @infisical/cli export \
