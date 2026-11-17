@@ -1,14 +1,19 @@
-version: '3.8'
-
 services:
-  app:
-    build: .
-    container_name: condominio-financeiro
+  condominio-financeiro-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    image: condominio-financeiro-api:latest
+
+    container_name: condominio-financeiro-api
+
+    ports:
+      - "7523:7523"
+
     env_file:
       - .env
+
     environment:
-      - INFISICAL_PROJECT_ID=${INFISICAL_PROJECT_ID}
-      - INFISICAL_UNIVERSAL_AUTH_CLIENT_ID=${INFISICAL_UNIVERSAL_AUTH_CLIENT_ID}
-      - INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET=${INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET}
-    ports:
-      - "9517:9517"
+      NODE_ENV: production
+      PORT: "7523"
