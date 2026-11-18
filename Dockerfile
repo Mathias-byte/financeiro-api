@@ -15,7 +15,10 @@ RUN apt-get update && \
 COPY package*.json ./
 
 # Instalar dependências
-RUN npm ci
+RUN npm ci --fetch-retries=5 \
+    --fetch-retry-mintimeout=20000 \
+    --fetch-retry-maxtimeout=120000 \
+    --fetch-timeout=300000
 
 # Copiar código-fonte
 COPY . .
